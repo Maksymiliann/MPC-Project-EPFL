@@ -665,10 +665,10 @@ def constraint_check(rocket, x: np.ndarray, u: np.ndarray) -> bool:
             print(f"\n Input {rocket.sys['InputName'][index]} violation: {u[index]:.2f} > {UBU[index]:.2f}", end=', ')
         terminate = True
     if np.any(x < LBX-1e-5):
-        for index in np.where(x < LBX-1e-5)[0]:
+        for index in np.where(x < LBX-1e-4)[0]:
             print(f"\n State {rocket.sys['StateName'][index]} violation: {x[index]:.2f} < {LBX[index]:.2f}", end=', ')
     if np.any(x > UBX+1e-5):
-        for index in np.where(x > UBX+1e-5)[0]:
+        for index in np.where(x > UBX+1e-4)[0]:
             print(f"\n State {rocket.sys['StateName'][index]} violation: {x[index]:.2f} > {UBX[index]:.2f}", end=', ')
 
     return terminate
