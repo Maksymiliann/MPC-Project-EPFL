@@ -45,7 +45,7 @@ class MPCControl_zvel(MPCControl_base):
         # 1) Cost weights (tune)
         # ----------------------------
         # State is only vz. We want vz -> 0 quickly, but avoid crazy throttle changes.
-        Q = np.array([[10.0]])
+        Q = np.array([[50.0]])
         R = np.array([[1.0]])
 
         # LQR terminal cost
