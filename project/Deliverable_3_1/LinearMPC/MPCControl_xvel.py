@@ -26,11 +26,11 @@ class MPCControl_xvel(MPCControl_base):
         constraints = []
         
         # Input Constraint: Servo 2 limit +/- 15 deg (0.26 rad)
-        constraints += [cp.abs(u_k[0]) <= np.deg2rad(15)]
+        constraints += [cp.abs(u_k[0]) <= np.deg2rad(14.9)]
         
         # State Constraint: Pitch Angle (Beta) limit +/- 10 deg (0.1745 rad)
         # Beta is index 1 in this subsystem [w_y, beta, v_x]
-        constraints += [cp.abs(x_k[1]) <= np.deg2rad(10)]
+        constraints += [cp.abs(x_k[1]) <= np.deg2rad(9.9)]
         
         return constraints
 

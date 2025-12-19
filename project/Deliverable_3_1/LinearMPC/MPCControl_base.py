@@ -124,29 +124,28 @@ class MPCControl_base:
             u_traj = np.tile(self.us[:, None], (1, self.N))
             
         else:
-            # Extract optimal results
             u0 = self.u_var[:, 0].value
             x_traj = self.x_var.value
             u_traj = self.u_var.value
 
         # 5. Output Clipping (Safety Saturation)
         # The simulator is very strict. If the solver outputs -0.260001, it crashes.
-        # We manually clip the output to be 100% sure it fits the simulator limits.
+        # We manually clip the output to be sure it fits the simulator limits.
         
-        if u0 is not None:
-            # Check which subsystem we are in based on u_ids
+        # if u0 is not None:
+        #     # Check which subsystem we are in based on u_ids
             
-            # x_vel (Servo 2) or y_vel (Servo 1) -> Limit +/- 0.26 rad
-            if self.u_ids[0] in [0, 1]: 
-                u0 = np.clip(u0, -0.26, 0.26)
+        #     # x_vel (Servo 2) or y_vel (Servo 1) -> Limit +/- 0.26 rad
+        #     if self.u_ids[0] in [0, 1]: 
+        #         u0 = np.clip(u0, -0.26, 0.26)
                 
-            # z_vel (Throttle) -> Limit [40, 80]
-            elif self.u_ids[0] == 2: 
-                u0 = np.clip(u0, 40.0, 80.0)
+        #     # z_vel (Throttle) -> Limit [40, 80]
+        #     elif self.u_ids[0] == 2: 
+        #         u0 = np.clip(u0, 40.0, 80.0)
                 
-            # roll (Differential) -> Limit +/- 20
-            elif self.u_ids[0] == 3: 
-                u0 = np.clip(u0, -20.0, 20.0)
+        #     # roll (Differential) -> Limit +/- 20
+        #     elif self.u_ids[0] == 3: 
+        #         u0 = np.clip(u0, -20.0, 20.0)
 
         return u0, x_traj, u_traj
     # def get_u(

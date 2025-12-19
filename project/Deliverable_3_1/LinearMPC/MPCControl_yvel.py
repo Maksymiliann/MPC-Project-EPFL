@@ -23,11 +23,11 @@ class MPCControl_yvel(MPCControl_base):
         constraints = []
         
         # Input Constraint: Servo 1 limit +/- 15 deg (0.26 rad)
-        constraints += [cp.abs(u_k[0]) <= np.deg2rad(15)]
+        constraints += [cp.abs(u_k[0]) <= np.deg2rad(14.9)]
         
         # State Constraint: Roll Angle (Alpha) limit +/- 10 deg (0.1745 rad) 
         # Alpha is index 1 in this subsystem [w_x, alpha, v_y]
-        constraints += [cp.abs(x_k[1]) <= np.deg2rad(10)]
+        constraints += [cp.abs(x_k[1]) <= np.deg2rad(9.9)]
         
         return constraints
 
