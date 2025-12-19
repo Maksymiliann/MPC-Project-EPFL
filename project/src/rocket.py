@@ -358,9 +358,9 @@ class Rocket(RocketBase):
                 self.linearize(self.xs, self.us)
             for k in range(N):
                 # Euler integration
-                print(f"Simulating time {T[k]:.2f}", end=':')
+                # print(f"Simulating time {T[k]:.2f}", end=':')
                 X[:, k+1] = Rocket.linear_integrate_step(self.A_ss, self.xs, self.B_ss, self.us, X[:, k], U[:, k], self.Ts)
-                print('', end='\n')
+                # print('', end='\n')
         else:
             if method =='nonlinear_real':
                 current_rocket = perturb_rocket(self)
@@ -369,10 +369,10 @@ class Rocket(RocketBase):
                 current_rocket = copy.deepcopy(self)
             for k in range(N):
                 # Euler integration
-                print(f"Simulating time {T[k]:.2f}", end=':')
+                # print(f"Simulating time {T[k]:.2f}", end=':')
                 U[:, k] = current_rocket.fuel_dynamics(U[:, k], self.Ts)
                 X[:, k+1] = Rocket.integrate_step(current_rocket.f, X[:, k], U[:, k], self.Ts)
-                print('', end='\n')
+                # print('', end='\n')
             
         return T, X[:,:-1], U
     
