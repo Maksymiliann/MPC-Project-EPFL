@@ -9,7 +9,7 @@ class MPCControl_roll(MPCControl_base):
     u_ids: np.ndarray = np.array([3])
 
     def __init__(self, A, B, xs, us, Ts, H):
-        self.Q = np.diag([1.0, 50.0]) 
+        self.Q = np.diag([1.0, 100.0]) 
         self.R = np.diag([1.0])
 
         super().__init__(A, B, xs, us, Ts, H)
