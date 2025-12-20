@@ -57,8 +57,8 @@ class MPCControl_zvel(MPCControl_base):
         # ----------------------------
         # Input: P_avg in [40, 80]
         # We optimize Δu, and actual u = us + Δu.
-        u_min = 40.0
-        u_max = 80.0
+        u_min = 40.1
+        u_max = 79.9
         du_min = u_min - float(self.us[0])
         du_max = u_max - float(self.us[0])
 
@@ -68,7 +68,7 @@ class MPCControl_zvel(MPCControl_base):
 
         # State: no explicit constraint in Part 3.1 for z-velocity besides “stay reasonable”.
         # For a well-defined terminal set, we add a design bound on vz (this is normal in the exercises).
-        vz_max = 7.0  # m/s (design bound; tune if needed)
+        vz_max = 10.0  # m/s (design bound; tune if needed)
         Fx = np.array([[1.0], [-1.0]])
         fx = np.array([vz_max, vz_max])
         X = Polyhedron.from_Hrep(Fx, fx)

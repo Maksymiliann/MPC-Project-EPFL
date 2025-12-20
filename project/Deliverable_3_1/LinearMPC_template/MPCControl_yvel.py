@@ -54,8 +54,8 @@ class MPCControl_yvel(MPCControl_base):
         # ----------------------------
         # 2) Build constraint sets in delta-coordinates (Δx, Δu)
         # ----------------------------
-        alpha_max = np.deg2rad(10.0)
-        d1_max = np.deg2rad(15.0)
+        alpha_max = np.deg2rad(9.9)
+        d1_max = np.deg2rad(14.9)
 
         # Input constraint: |d1| <= 15deg  ->  us + Δu within [-d1_max, d1_max]
         # i.e. Δu <= d1_max - us,  -Δu <= d1_max + us
