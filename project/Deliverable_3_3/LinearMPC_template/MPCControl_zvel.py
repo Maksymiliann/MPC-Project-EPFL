@@ -57,8 +57,8 @@ class MPCControl_zvel(MPCControl_base):
         # ----------------------------
         # Input: P_avg in [40, 80]
         # We optimize Δu, and actual u = us + Δu.
-        u_min = 40.1
-        u_max = 79.9
+        u_min = 40.01
+        u_max = 79.99
         du_min = u_min - float(self.us[0])
         du_max = u_max - float(self.us[0])
 

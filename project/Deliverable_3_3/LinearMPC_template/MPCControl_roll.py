@@ -56,8 +56,8 @@ class MPCControl_roll(MPCControl_base):
         # 2) Constraints in delta coordinates (Δx, Δu)
         # ----------------------------
         # Input constraint: |Pdiff| <= 20
-        u_min = -19.9
-        u_max = 19.9
+        u_min = -19.99
+        u_max = 19.99
         du_min = u_min - float(self.us[0])
         du_max = u_max - float(self.us[0])
 
