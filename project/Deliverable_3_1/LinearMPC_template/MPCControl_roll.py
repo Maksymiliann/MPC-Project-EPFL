@@ -45,7 +45,7 @@ class MPCControl_roll(MPCControl_base):
         # 1) Cost weights (tune)
         # ----------------------------
         # States: [wz, gamma]. Primary goal: gamma -> 0. Penalize wz to damp oscillations.
-        Q = np.diag([1.0, 30.0])
+        Q = np.diag([1.0, 100.0])
         R = np.diag([1.0])
 
         # LQR terminal ingredients (discrete-time)
