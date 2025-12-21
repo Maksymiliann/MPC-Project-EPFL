@@ -119,7 +119,7 @@ class MPCControl_yvel(MPCControl_base):
         x_ref = cp.Parameter(nx)
         u_ref = cp.Parameter(nu)
         
-        slack = cp.Variable(nonneg=True)
+        slack = cp.Variable((Fx.shape[0], N+1), nonneg=True)
 
         cost = 0
         constr = []
@@ -135,23 +135,26 @@ class MPCControl_yvel(MPCControl_base):
             cost += cp.quad_form(Xvar[:, k], Q) + cp.quad_form(Uvar[:, k], R)
 
             # state constraints: Fx (x+xr) <= fx + slack
-            constr += [Fx @ (Xvar[:, k] + x_ref) <= fx + slack]
+            constr += [Fx @ (Xvar[:, k] + x_ref) <= fx + slack[:,k]]
 
             # input constraints: Mu u <= mu
             constr += [Mu @ (Uvar[:, k] + u_ref) <= mu]
+
+            cost += 10000 * cp.sum(slack[:, k])
 
         # terminal cost
         cost += cp.quad_form(Xvar[:, N], Qf)
 
         # terminal constraint: Xf.A x_N <= Xf.b
-        # constr += [Xf.A @ (Xvar[:, N] + x_ref) <= Xf.b]
+        constr += [Xf.A @ (Xvar[:, N] + x_ref) <= Xf.b]
 
         # We allow the state to be outside the set by amount 'slack'
         # H * x <= h + slack
-        # constr += [Xf.A @ (Xvar[:, N] + x_ref) <= Xf.b + slack]
+        #constr += [Xf.A @ (Xvar[:, N] + x_ref) <= Xf.b + slack[:,N]]
         
         # Make it extremely expensive so the solver only uses it if it HAS to.
-        cost += 10000 * slack
+        #cost += 10000 * cp.sum(slack[:, N])
+        # cost += rho * cp.sum_squares(slack[:, N])  # quadratic
 
         self._Xvar = Xvar
         self._Uvar = Uvar

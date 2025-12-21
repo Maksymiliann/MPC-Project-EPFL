@@ -66,7 +66,7 @@ class MPCControl_xvel(MPCControl_base):
         # State constraints:
         # Only beta is a "real" constraint from spec, but we also put reasonable bounds
         # on wy and vx so the terminal set is well-defined/bounded.
-        wy_max = 5.0    # rad/s (tunable “design bound”)
+        wy_max = 7.0    # rad/s (tunable “design bound”)
         vx_max = 10.0   # m/s   (tunable “design bound”)
 
         # Constraints on actual beta: |beta| <= beta_max
@@ -116,7 +116,7 @@ class MPCControl_xvel(MPCControl_base):
         x_ref = cp.Parameter(nx)
         u_ref = cp.Parameter(nu)
 
-        slack = cp.Variable((Fx.shape[0], N), nonneg=True)
+        slack = cp.Variable(nonneg=True)
 
         cost = 0
         constr = []
@@ -132,26 +132,23 @@ class MPCControl_xvel(MPCControl_base):
             cost += cp.quad_form(Xvar[:, k], Q) + cp.quad_form(Uvar[:, k], R)
 
             # state constraints: Fx (x+xr) <= fx + slack
-            constr += [Fx @ (Xvar[:, k] + x_ref) <= fx + slack[:,k]]
+            constr += [Fx @ (Xvar[:, k] + x_ref) <= fx + slack]
 
             # input constraints: Mu u <= mu
             constr += [Mu @ (Uvar[:, k] + u_ref) <= mu]
-
-            cost += 10000 * cp.sum(slack[:, k])
 
         # terminal cost
         cost += cp.quad_form(Xvar[:, N], Qf)
 
         # terminal constraint: Xf.A x_N <= Xf.b
-        constr += [Xf.A @ (Xvar[:, N] + x_ref) <= Xf.b]
+        #constr += [Xf.A @ (Xvar[:, N] + x_ref) <= Xf.b]
 
         # We allow the state to be outside the set by amount 'slack'
         # H * x <= h + slack
-        # constr += [Xf.A @ (Xvar[:, N] + x_ref) <= Xf.b + slack[:,N]]
+        constr += [Xf.A @ (Xvar[:, N] + x_ref) <= Xf.b + slack]
         
         # Make it extremely expensive so the solver only uses it if it HAS to.
-        # cost += 10000 * cp.sum(slack[:, N])
-        # cost += rho * cp.sum_squares(slack[:, N])  # quadratic
+        cost += 10000 * slack
 
         self._Xvar = Xvar
         self._Uvar = Uvar
