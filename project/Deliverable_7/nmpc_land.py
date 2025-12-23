@@ -66,10 +66,10 @@ class NmpcCtrl:
         # ---- Cost weights (reasonable defaults; you can tune)
         # State is [w(3), phi(3), v(3), p(3)]
         Q = np.diag([
-            1.0, 1.0, 1.0,          # angular rates w
-            5.0, 10.0, 5.0,      # angles phi (penalize beta more if you want)
-            1.0, 1.0, 10.0,       # linear velocities v
-            20.0, 20.0, 20.0       # positions p (z strongest)
+            10.0, 10.0, 10.0,          # angular rates w
+            50.0, 100.0, 50.0,      # angles phi (penalize beta more if you want)
+            10.0, 10.0, 100.0,       # linear velocities v
+            200.0, 200.0, 200.0       # positions p (z strongest)
         ])
         R = np.diag([50.0, 50.0, 1.0, 1.0])  # inputs: [d1, d2, Pavg, Pdiff] 
 
@@ -84,6 +84,10 @@ class NmpcCtrl:
         # 3) LQR terminal matrix Qf = P (Riccati solution)
         # dlqr returns (K, S, E) where S is the Riccati matrix P
         K_lqr, Qf, _ = dlqr(A_d, B_d, Q, R)
+
+        self.Q_np  = np.array(Q)
+        self.R_np  = np.array(R)
+        self.Qf_np = np.array(Qf)
 
         # Convert to CasADi for use in the Opti objective
         Q  = ca.DM(Q)
@@ -174,6 +178,53 @@ class NmpcCtrl:
         self._U = U
         self._X0 = X0
 
+
+    def _state_cost_breakdown(self, x, Qmat):
+        dx = (x - self.xs).reshape(-1, 1)
+
+        # helper block cost (diagonal block only)
+        def qslice(i0, i1):
+            d = dx[i0:i1, :]
+            Qs = Qmat[i0:i1, i0:i1]
+            return float(d.T @ Qs @ d)
+
+        out = {}
+        out["w"]   = qslice(0, 3)
+        out["phi"] = qslice(3, 6)
+        out["v"]   = qslice(6, 9)
+        out["p"]   = qslice(9, 12)
+        out["vz_only"] = float(Qmat[8, 8] * dx[8, 0]**2)
+        out["z_only"]  = float(Qmat[11,11] * dx[11,0]**2)
+
+        # full quadratic form
+        total = float(dx.T @ Qmat @ dx)
+
+        # diagonal-only contribution
+        diag = np.diag(Qmat)
+        diag_part = float((dx[:,0]**2 * diag).sum())
+
+        # cross-term contribution = total - diag_part
+        cross_part = total - diag_part
+
+        out["total"] = total
+        out["diag_part"] = diag_part
+        out["cross_part"] = cross_part
+        out["blocks_sum"] = out["w"] + out["phi"] + out["v"] + out["p"]
+
+        return out
+
+
+    def _input_cost_breakdown(self, u):
+        du = u - self.us
+        costs = {
+            "d1":    self.R_np[0, 0] * du[0]**2,
+            "d2":    self.R_np[1, 1] * du[1]**2,
+            "Pavg":  self.R_np[2, 2] * du[2]**2,
+            "Pdiff": self.R_np[3, 3] * du[3]**2,
+        }
+        costs["total"] = sum(costs.values())
+        return {k: float(v) for k, v in costs.items()}
+
     # -------------------------------------------------
     # MPC call
     # -------------------------------------------------
@@ -230,6 +281,64 @@ class NmpcCtrl:
 
         X_ol = np.array(sol.value(self._X))
         U_ol = np.array(sol.value(self._U))
+
+        # ============================
+        # DETAILED COST BREAKDOWN
+        # ============================
+        state_costs_sum = {
+            "w": 0.0, "phi": 0.0, "v": 0.0, "p": 0.0, "total": 0.0,
+            "vz_only": 0.0, "z_only": 0.0
+        }
+        input_costs_sum = {
+            "d1": 0, "d2": 0, "Pavg": 0, "Pdiff": 0, "total": 0
+        }
+
+        for k in range(self.N):
+            sc = self._state_cost_breakdown(X_ol[:, k], self.Q_np)
+            ic = self._input_cost_breakdown(U_ol[:, k])
+
+            for key in state_costs_sum:
+                state_costs_sum[key] += sc[key]
+
+            for key in input_costs_sum:
+                input_costs_sum[key] += ic[key]
+
+        # terminal cost breakdown
+        terminal_sc = self._state_cost_breakdown(X_ol[:, -1], self.Qf_np)
+
+        # ============================
+        # PRINT RESULTS
+        # ============================
+        print("\n[COST BREAKDOWN – STAGE (STATE)]")
+        print(f"  w       : {state_costs_sum['w']:.2f}")
+        print(f"  phi     : {state_costs_sum['phi']:.2f}")
+        print(f"  v       : {state_costs_sum['v']:.2f}   (vz_only={state_costs_sum['vz_only']:.2f})")
+        print(f"  p       : {state_costs_sum['p']:.2f}   (z_only={state_costs_sum['z_only']:.2f})")
+        print(f"  total   : {state_costs_sum['total']:.2f}")
+
+        print("\n[COST BREAKDOWN – STAGE (INPUT)]")
+        for k, v in input_costs_sum.items():
+            print(f"  {k:6s}: {v:8.2f}")
+
+        print("\n[COST BREAKDOWN – TERMINAL (STATE)]")
+        print(f"  w       : {terminal_sc['w']:.2f}")
+        print(f"  phi     : {terminal_sc['phi']:.2f}")
+        print(f"  v       : {terminal_sc['v']:.2f}   (vz_only={terminal_sc['vz_only']:.2f})")
+        print(f"  p       : {terminal_sc['p']:.2f}   (z_only={terminal_sc['z_only']:.2f})")
+        print(f"  total   : {terminal_sc['total']:.2f}")
+        print(f"  blocks_sum : {terminal_sc['blocks_sum']:.2f}")
+        print(f"  diag_part  : {terminal_sc['diag_part']:.2f}")
+        print(f"  cross_part : {terminal_sc['cross_part']:.2f}")
+        print(f"  total      : {terminal_sc['total']:.2f}")
+
+        total_stage = state_costs_sum["total"] + input_costs_sum["total"]
+        total_cost  = total_stage + terminal_sc["total"]
+
+        print("\n[COST SUMMARY]")
+        print(f"  Stage total    : {total_stage:.2f}")
+        print(f"  Terminal total : {terminal_sc['total']:.2f}")
+        print(f"  TOTAL COST     : {total_cost:.2f}")
+        print(f"  Terminal ratio : {100*terminal_sc['total']/(total_cost+1e-9):.1f}%")
 
         # store for next warm-start
         self._prev_X = X_ol
