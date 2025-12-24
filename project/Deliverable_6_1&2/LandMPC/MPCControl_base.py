@@ -52,14 +52,14 @@ class MPCControl_base:
 
         self._setup_controller()
 
-    def _setup_controller(self) -> None:
-        #################################################
-        # YOUR CODE HERE
+    # def _setup_controller(self) -> None:
+    #     #################################################
+    #     # YOUR CODE HERE
 
-        self.ocp = ...
+    #     self.ocp = ...
 
-        # YOUR CODE HERE
-        #################################################
+    #     # YOUR CODE HERE
+    #     #################################################
 
     @staticmethod
     def _discretize(A: np.ndarray, B: np.ndarray, Ts: float):
@@ -72,14 +72,31 @@ class MPCControl_base:
     def get_u(
         self, x0: np.ndarray, x_target: np.ndarray = None, u_target: np.ndarray = None
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-        #################################################
-        # YOUR CODE HERE
+        
+        dx0 = x0 - self.xs
+        self._x_init.value = dx0
+        
+        if x_target is not None:
+            if hasattr(self, '_x_ref'):
+                self._x_ref.value = x_target - self.xs
+        else:
+            if hasattr(self, '_x_ref'):
+                self._x_ref.value = np.zeros(self.nx)
 
-        u0 = ...
-        x_traj = ...
-        u_traj = ...
+        self.ocp.solve(solver=cp.OSQP, warm_start=True, verbose=False)
+        
+        # Fallback if OSQP fails (rare with soft constraints)
+        # if self.ocp.status not in [cp.OPTIMAL, cp.OPTIMAL_INACCURATE]:
+        #      # Return trim input (delta u = 0)
+        #      u0 = self.us
+        #      x_traj = np.tile(self.xs.reshape(-1,1), (1, self.N+1))
+        #      u_traj = np.tile(self.us.reshape(-1,1), (1, self.N))
+        #      return u0, x_traj, u_traj
 
-        # YOUR CODE HERE
-        #################################################
+        du0 = self._U.value[:, 0]
+        u0 = self.us + du0
+
+        x_traj = self.xs.reshape(-1, 1) + self._X.value
+        u_traj = self.us.reshape(-1, 1) + self._U.value
 
         return u0, x_traj, u_traj

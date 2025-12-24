@@ -36,11 +36,11 @@ class MPCControl_z(MPCControl_base):
         return O
 
     def _setup_controller(self) -> None:
-        Q_lqr = np.diag([50.0, 100.0])  # High penalty on Z deviation
+        Q_lqr = np.diag([10.0, 100.0])  # High penalty on Z deviation
         R_lqr = np.diag([1.0])          # Moderate penalty on input
         
         # Weights for Nominal MPC
-        Q_mpc = np.diag([10.0, 100.0])
+        Q_mpc = np.diag([10.0, 200.0])
         R_mpc = np.diag([1.0])
 
         #################################################
@@ -189,6 +189,8 @@ class MPCControl_z(MPCControl_base):
             
             x_traj = self._X_nom.value + self.xs.reshape(-1, 1)
             u_traj = self._U_nom.value + self.us.reshape(-1, 1)
+        else:
+            print("[zvel] Warning: MPC QP solver failed. reason: ", self.ocp.status)
         
         u0 = self.us + du0
         u0 = np.clip(u0, 40.0, 80.0)
