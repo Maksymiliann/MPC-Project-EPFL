@@ -9,9 +9,9 @@ class MPCControl_y(MPCControl_base):
 
     def _setup_controller(self) -> None:
         # Tuning
-        Q = np.diag([10.0, 100.0, 10.0, 1.0]) # [vel, pos, ang, rate]
-        R = np.diag([1.0])
-        self.slack_penalty = 1.0
+        Q = np.diag([1.0, 1.0, 1.0, 100.0]) # Rate (1), Angle (4), Velocity (6), Position (9)
+        R = np.diag([500.0])
+        self.slack_penalty = 200.0
 
         u_max = 0.26 # ~15 deg
         angle_max = np.deg2rad(15)

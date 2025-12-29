@@ -36,8 +36,8 @@ class MPCControl_z(MPCControl_base):
         return O
 
     def _setup_controller(self) -> None:
-        Q_lqr = np.diag([10.0, 100.0])  # High penalty on Z deviation
-        R_lqr = np.diag([1.0])          # Moderate penalty on input
+        Q_lqr = np.diag([10.0, 100.0])
+        R_lqr = np.diag([1.0])
         
         # Weights for Nominal MPC
         Q_mpc = np.diag([10.0, 200.0])
@@ -48,7 +48,7 @@ class MPCControl_z(MPCControl_base):
         #################################################
         # Compute LQR gain K and Terminal Cost Qf
         K_val, Qf, _ = dlqr(self.A, self.B, Q_lqr, R_lqr)
-        self.K = -K_val  # Gain such that A+BK is stable
+        self.K = -K_val
         self.Qf = Qf
 
         #################################################

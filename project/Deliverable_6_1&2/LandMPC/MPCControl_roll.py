@@ -8,9 +8,10 @@ class MPCControl_roll(MPCControl_base):
     u_ids: np.ndarray = np.array([3])
 
     def _setup_controller(self) -> None:
-        Q = np.diag([200.0, 1.0]) # [angle, rate]
+        Q = np.diag([1.0, 10.0]) # [angle, rate]
         R = np.diag([1.0])
-        u_max = 0.35 # in rads, approx 20 degrees
+        
+        u_max = 19.99
         
         nx, nu, N = self.nx, self.nu, self.N
         X = cp.Variable((nx, N + 1))
@@ -24,7 +25,7 @@ class MPCControl_roll(MPCControl_base):
         
         for k in range(N):
             constr += [X[:, k + 1] == self.A @ X[:, k] + self.B @ U[:, k]]
-            constr += [cp.abs(U[:, k]) <= u_max]
+            constr += [cp.abs(U[:, k] + self.us[0]) <= u_max]
             
             # Track x_ref (which will likely be 0 for roll)
             cost += cp.quad_form(X[:, k] - x_ref, Q) + cp.quad_form(U[:, k], R)
