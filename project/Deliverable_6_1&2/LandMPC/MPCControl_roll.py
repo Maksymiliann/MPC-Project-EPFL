@@ -8,7 +8,7 @@ class MPCControl_roll(MPCControl_base):
     u_ids: np.ndarray = np.array([3])
 
     def _setup_controller(self) -> None:
-        Q = np.diag([1.0, 10.0]) # [angle, rate]
+        Q = np.diag([1.0, 200.0]) # [rate, angle]
         R = np.diag([1.0])
         
         u_max = 19.99
