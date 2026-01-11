@@ -129,7 +129,7 @@ class MPCControl_roll(MPCControl_base):
         cost += cp.quad_form(Xvar[:, N], Qf)
 
         # terminal constraint: Xf.A x_N <= Xf.b
-        constr += [Xf.A @ (Xvar[:, N] + x_ref) <= Xf.b]
+        # constr += [Xf.A @ (Xvar[:, N] + x_ref) <= Xf.b]
 
         # Save handles for get_u()
         self._Xvar = Xvar

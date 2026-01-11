@@ -146,7 +146,7 @@ class MPCControl_yvel(MPCControl_base):
         cost += cp.quad_form(Xvar[:, N], Qf)
 
         # terminal constraint: Xf.A x_N <= Xf.b
-        constr += [Xf.A @ (Xvar[:, N] + x_ref) <= Xf.b]
+        # constr += [Xf.A @ (Xvar[:, N] + x_ref) <= Xf.b]
 
         # We allow the state to be outside the set by amount 'slack'
         # H * x <= h + slack

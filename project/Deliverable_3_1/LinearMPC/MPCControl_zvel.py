@@ -1,61 +1,148 @@
 import numpy as np
 import cvxpy as cp
 from control import dlqr
+from mpt4py import Polyhedron
+
 from .MPCControl_base import MPCControl_base
 
 
 class MPCControl_zvel(MPCControl_base):
+    # Reduced subsystem: state = [vU] (z-velocity), input = [dF] (P_avg)
+    # In the full rocket state, index 8 is vU; input index 2 is dF (P_avg).
     x_ids: np.ndarray = np.array([8])
     u_ids: np.ndarray = np.array([2])
 
-    def __init__(self, A, B, xs, us, Ts, H):
-        self.Q = np.diag([50.0])
-        self.R = np.diag([1.0])
-        super().__init__(A, B, xs, us, Ts, H)
+    @staticmethod
+    def _max_invariant_set(A_cl: np.ndarray, X: Polyhedron, max_iter: int = 50) -> Polyhedron:
+        """
+        Maximal positive invariant set for x+ = A_cl x inside X:
+            O_{k+1} = O_k ∩ Pre(O_k),  Pre(O) = {x | A_cl x ∈ O}.
+        If O = {x | Hx <= h} => Pre(O) = {x | H A_cl x <= h}.
+        """
+        O = X
+        converged = False
 
-    def get_stage_cost(self, x_k, u_k):
-        dx = x_k - self.x_target_param
-        du = u_k - self.u_target_param
-        return cp.quad_form(dx, self.Q) + cp.quad_form(du, self.R)
+        for _ in range(max_iter):
+            Oprev = O
+            H, h = O.A, O.b
+            PreO = Polyhedron.from_Hrep(H @ A_cl, h)
+            O = O.intersect(PreO)
+            O.minHrep(True)
 
-    def get_stage_constraints(self, x_k, u_k):
-        constraints = []
-        
-        # Input Constraint: P_avg must be between 40 and 80 
-        constraints += [u_k[0] >= 40.0]
-        constraints += [u_k[0] <= 80.0]
-        
-        return constraints
+            # helps some mpt4py backends finalize representation
+            _ = O.Vrep
 
-    def get_terminal_cost(self, x_N):
-        if not hasattr(self, 'P'):
-            K, self.P, E = dlqr(self.A, self.B, self.Q, self.R)
-        dx = x_N - self.x_target_param
-        return cp.quad_form(dx, self.P)
+            if O == Oprev:
+                converged = True
+                break
 
-    def get_terminal_constraints(self, x_N):
-        return [x_N == self.x_target_param]
+        if not converged:
+            print("[zvel] Warning: max invariant set did not converge within max_iter.")
+        return O
 
-    # def _setup_controller(self) -> None:
-    #     #################################################
-    #     # YOUR CODE HERE
+    def _setup_controller(self) -> None:
+        # ----------------------------
+        # 1) Cost weights (tune)
+        # ----------------------------
+        # State is only vz. We want vz -> 0 quickly, but avoid crazy throttle changes.
+        Q = np.array([[50.0]])
+        R = np.array([[1.0]])
 
-    #     self.ocp = ...
+        # LQR terminal cost
+        K_lqr, Qf, _ = dlqr(self.A, self.B, Q, R)
+        K_lqr = -K_lqr  # use u = Kx convention
 
-    #     # YOUR CODE HERE
-    #     #################################################
+        # ----------------------------
+        # 2) Constraints in delta coordinates (Δx, Δu)
+        # ----------------------------
+        # Input: P_avg in [40, 80]
+        # We optimize Δu, and actual u = us + Δu.
+        u_min = 40.01
+        u_max = 79.99
+        du_min = u_min - float(self.us[0])
+        du_max = u_max - float(self.us[0])
 
-    # def get_u(
-    #     self, x0: np.ndarray, x_target: np.ndarray = None, u_target: np.ndarray = None
-    # ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    #     #################################################
-    #     # YOUR CODE HERE
+        Mu = np.array([[1.0], [-1.0]])
+        mu = np.array([du_max, -du_min])  # Δu <= du_max and -Δu <= -du_min
+        U = Polyhedron.from_Hrep(Mu, mu)
 
-    #     u0 = ...
-    #     x_traj = ...
-    #     u_traj = ...
+        # State: no explicit constraint in Part 3.1 for z-velocity besides “stay reasonable”.
+        # For a well-defined terminal set, we add a design bound on vz (this is normal in the exercises).
+        vz_max = 10.0  # m/s (design bound; tune if needed)
+        Fx = np.array([[1.0], [-1.0]])
+        fx = np.array([vz_max, vz_max])
+        X = Polyhedron.from_Hrep(Fx, fx)
 
-    #     # YOUR CODE HERE
-    #     #################################################
+        # Terminal set: Xf = maximal invariant subset of X ∩ {x | Kx ∈ U}
+        KU = Polyhedron.from_Hrep(U.A @ K_lqr, U.b)   # {x | U.A*(Kx) <= U.b}
+        Xf0 = X.intersect(KU)
+        Acl = self.A + self.B @ K_lqr
+        Xf = self._max_invariant_set(Acl, Xf0)
 
-    #     return u0, x_traj, u_traj
+        # store (optional, but useful for plotting/report)
+        self.K_lqr = K_lqr
+        self.Q = Q
+        self.R = R
+        self.Qf = Qf
+        self.X = X
+        self.U = U
+        self.Xf = Xf
+
+        # ----------------------------
+        # 3) CVXPY MPC problem
+        # ----------------------------
+        nx, nu, N = self.nx, self.nu, self.N
+
+        Xvar = cp.Variable((nx, N + 1))  # Δx trajectory
+        Uvar = cp.Variable((nu, N))      # Δu trajectory
+        x0_param = cp.Parameter(nx)      # Δx(0)
+
+        cost = 0
+        constr = [Xvar[:, 0] == x0_param]
+
+        for k in range(N):
+            # dynamics
+            constr += [Xvar[:, k + 1] == self.A @ Xvar[:, k] + self.B @ Uvar[:, k]]
+
+            # stage cost
+            cost += cp.quad_form(Xvar[:, k], Q) + cp.quad_form(Uvar[:, k], R)
+
+            # constraints (delta form)
+            constr += [Fx @ Xvar[:, k] <= fx]
+            constr += [Mu @ Uvar[:, k] <= mu]
+
+        # terminal cost + terminal constraint
+        cost += cp.quad_form(Xvar[:, N], Qf)
+        constr += [Xf.A @ Xvar[:, N] <= Xf.b]
+
+        # Save handles for get_u()
+        self._Xvar = Xvar
+        self._Uvar = Uvar
+        self._x0_param = x0_param
+
+        self.ocp = cp.Problem(cp.Minimize(cost), constr)
+
+    def get_u(
+        self, x0: np.ndarray, x_target: np.ndarray = None, u_target: np.ndarray = None
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+
+        dx0 = x0 - self.xs
+        self._x0_param.value = dx0
+
+        # Solve
+        try:
+            self.ocp.solve(solver=cp.OSQP, warm_start=True, verbose=False)
+        except Exception:
+            self.ocp.solve(verbose=False)
+
+        if self.ocp.status not in [cp.OPTIMAL, cp.OPTIMAL_INACCURATE]:
+            raise RuntimeError(f"[zvel] MPC solve failed: status={self.ocp.status}")
+
+        du0 = self._Uvar.value[:, 0]
+        u0 = self.us + du0  # convert Δu -> actual u
+
+        # Predicted trajectories in actual coordinates
+        x_traj = self.xs.reshape(-1, 1) + self._Xvar.value
+        u_traj = self.us.reshape(-1, 1) + self._Uvar.value
+
+        return u0, x_traj, u_traj
